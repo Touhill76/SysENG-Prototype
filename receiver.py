@@ -1,10 +1,11 @@
 import socket
 import time
+import address_book as a
 
 # Connection Settings - Might change in the future
 
-HOST = "127.0.0.1"      # IP address of coms relay
-PORT = 5000             # port number used by coms relay
+HOST = a.IP_ADDRESS       # IP address of coms relay
+PORT = a.RX_1             # port number used by coms relay
 
 RECEIVER_ID = "RX1"     # how relay identifies each receiver
 RETRY_TIME = 2          # number of seconds before trying to reconnect
@@ -25,7 +26,7 @@ while True:
 
         while True:
             # recieve up to 1024 bytes of data
-            message = receiver.recv(1024)
+            message = receiver.recv(a.BUFFER_SIZE)
 
             # if no data is received, the connection has closed
             if not message:

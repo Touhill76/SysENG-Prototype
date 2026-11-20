@@ -1,6 +1,6 @@
 import socket
 import json
-
+import address_book as a
 
 
 #1. Build Message
@@ -12,15 +12,15 @@ import json
 
 # Transmitter 
 # Central node address
-HOST = "127.0.0.1"
-PORT = 5000
+HOST = a.IP_ADDRESS
+PORT = a.RELAY_PORT
 
 # Message to send
 message = {
     "message_id": 1,
-    "source_port": 5000,
-    "destination_port": 5005,
-    "payload": "hello from transmitter 5000"
+    "source_port": a.TX_1,
+    "destination_port": a.RX_1,
+    "payload": f"hello from transmitter {a.TX_1}"
 }
 counter = 0 
 # Create TCP socket object
@@ -39,15 +39,15 @@ while counter <6 :
     print("Message sent")
 
 # Wait for acknowledgment
-ack_data = client.recv(4096)
+ack_data = client.recv(a.BUFFER_SIZE)
 
 # Convert back to Python object
 ack = json.loads(ack_data.decode("utf-8"))
 
 print("ACK:", ack)
 
-# Check acknowledgment
+'''# Check acknowledgment
 if ack["message_id"] == message["message_id"]:
-    print("Message confirmed")
+    print("Message confirmed")'''
 
 client.close()
