@@ -54,8 +54,7 @@ def handle_new_transmitter(client, addr):
 def requestRelease():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as release:
         release.connect((HOST, RELEASE_PORT))
-        release_msg = json.dumps('REL').encode('utf-8')
-        release.send(release_msg)
+        release.sendall(b'{"status":"alive"}')
         
         data = release.recv(a.BUFFER_SIZE)
         ack = json.loads(data.decode('utf-8'))
