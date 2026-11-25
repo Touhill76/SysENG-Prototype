@@ -110,7 +110,7 @@ def test_determine_packet_type(packet_type: str, packet: dict) -> None:
         }
      )
 ])
-def test_get_destination_port(expected_port, packet) -> None:
+def test_get_destination_port(expected_port: int, packet: dict) -> None:
     """
     Assert ReConnect._get_destination_port() can correctly read the destination
     port in supported packet types.
@@ -119,3 +119,27 @@ def test_get_destination_port(expected_port, packet) -> None:
     port = rc._get_destination_port(packet)
     assert port == expected_port
     assert isinstance(port, int)
+
+
+@pytest.mark.parametrize("message", [
+    {
+        "destination": 5001,
+    },
+
+    {
+        "destination": 5002,
+        "monitor_packet": True
+    },
+
+    {
+        "destination": 5003,
+        "handover_key": "0123456789abcdef"
+    }
+])
+def test_serialize(message: dict) -> None:
+    """
+    Assert ReConnect._serialize() outputs a bytes array.
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+    packet = rc._serialize(message)
+    assert isinstance(packet, bytes)

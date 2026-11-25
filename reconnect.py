@@ -106,7 +106,25 @@ class ReConnect:
         """
         return message_json["destination"]
 
-    def deliver(self, message_json: dict, destination_port: int) -> bool:
+    def _serialize(self, message_json: dict) -> bytes:
+        """
+        Convert a python dictionary representation of a JSON object into an
+        array pf bytes ready to send over TCP.
+
+        Parameters
+        ----------
+        message_json: dict
+            The JSON message to be sent, as a JSON object represented by a
+            Python dictionary.
+
+        Returns
+        -------
+        bytes
+            Returns the JSON object as bytes.
+        """
+        return json.dumps(message_json).encode("utf-8")
+
+    def _deliver(self, packet: bytes, destination_port: int) -> bool:
         """
         Deliver a message to it's specified destination.
 
@@ -125,13 +143,10 @@ class ReConnect:
             Returns boolean True if sent message returns an acknowledgement
             within TBD timeout. Returns False if message does not return an
             acknowledgement within TBD seconds.
-
-        Raises
-        ------
-        OSError
-            Raises an OSError if self.tx_port cannot be used.
         """
-        pass
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+            client.connect((address_book.IP_ADDRESS, destination_port))
+            client.sendall(packet)
 
     def relay(self) -> tuple[int, int, int]:
         """
