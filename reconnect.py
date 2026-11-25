@@ -1,10 +1,11 @@
-# ReConnect.py
+# reconnect.py
 
 from typing import Final
-# import socket
-# import json
+import socket
+import json
 # import threading
-# import address_book
+import address_book
+from time import sleep
 
 
 class ReConnect:
@@ -12,31 +13,48 @@ class ReConnect:
 
     """
 
-    def __init__(self, tx_port: int, communications_port: int):
-        self.tx_port: Final[int] = tx_port
-        self.communications_port: Final[int] = communications_port
+    def __init__(self, relay_port: int):
+        self.ip_address = address_book.IP_ADDRESS
+        self.relay_port: Final[int] = relay_port
 
-    def monitor(self) -> None:
+    def monitor(self) -> int:
         """
-        Monitor the status of existing communications network by sending a
-        packet to itself 10 times per second via the communications system
-        being monitored, each with a timeout of 0.1 seconds.
+        Monitor the status of existing communications network by connecting 10
+        times per second.
 
         This method blocks indefinitely for as long as the communications
-        system being monitored continues to acknowledge the sent packets.
+        system being monitored continues to accept connections.
 
         Returns
         -------
-        None
-            Returns None if 3 consecutive packets fail to return an
-            acknowledgement within 0.1 seconds.
-
-        Raises
-        ------
-        OSError
-            Raises an OSError if self.tx_port becomes unusable.
+        int
+            Returns the number of successful connections before the system
+            being monitored failed to accept a connection.
         """
-        pass
+        monitor_packet = {
+            "destination": address_book.RECONNECT_PORT,
+            "monitor_packet": True
+        }
+
+        monitor_packet = json.dumps(monitor_packet).encode('utf-8')
+
+        connections = 0
+
+        while True:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.1)
+                    s.connect((self.ip_address,
+                               self.relay_port))
+                    s.sendall(monitor_packet)
+                    connections += 1
+
+            except Exception:
+                break
+
+            sleep(0.1)
+
+        return connections
 
     def receive_message(self) -> dict:
         """

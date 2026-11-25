@@ -6,10 +6,10 @@ IP_ADDRESS = '127.0.0.1'
 BUFFER_SIZE = 1000
 
 # Transmitters send data to here
-RELAY_PORT = 5000
+RELAY_PORT = 5001
 
 # Relay sends data here to request communications handover from ReConnect
-RECONNECT_RELEASE = 5025
+RECONNECT_PORT = 5025
 
 # Transmitters
 TX_1 = 5005
