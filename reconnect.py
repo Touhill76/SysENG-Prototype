@@ -56,6 +56,28 @@ class ReConnect:
 
         return connections
 
+    def _deserialize(self, packet: bytes) -> dict:
+        """
+        Convert a received TCP packet from an array of bytes into a JSON object
+        represented as a Python dictionary. If received packet is not valid
+        JSON, return dictionary {"invalid": True}
+
+        Parameters
+        ----------
+        message_json: dict
+            The received packet as an array of bytes.
+
+        Returns
+        -------
+        dict
+            Returns a JSON object as represented by an Python dictionary.
+        """
+        try:
+            return json.loads(packet.decode("utf-8"))
+
+        except Exception:
+            return {"invalid": True}
+
     def _determine_packet_type(self, message_json: dict) -> str:
         """
         Determine if a packet is a message to be delivered, a monitoring packet

@@ -138,8 +138,35 @@ def test_get_destination_port(expected_port: int, packet: dict) -> None:
 ])
 def test_serialize(message: dict) -> None:
     """
-    Assert ReConnect._serialize() outputs a bytes array.
+    Assert ReConnect._serialize() returns a bytes array.
     """
     rc = ReConnect(address_book.RELAY_PORT)
     packet = rc._serialize(message)
     assert isinstance(packet, bytes)
+
+
+@pytest.mark.parametrize("message", [
+    {
+        "destination": 5001,
+    },
+
+    {
+        "destination": 5002,
+        "monitor_packet": True
+    },
+
+    {
+        "destination": 5003,
+        "handover_key": "0123456789abcdef"
+    }
+])
+def test_deserialize(message: dict) -> None:
+    """
+    Assert ReConnect._deserialize() is the inverse operation of
+    ReConnect._serialize() and returns a Python dictionary.
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+    packet = rc._serialize(message)
+    deserialized_packet = rc._deserialize(packet)
+    assert deserialized_packet == message
+    assert isinstance(deserialized_packet, dict)
