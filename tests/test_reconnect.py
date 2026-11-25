@@ -4,6 +4,7 @@ import sys
 import subprocess
 import address_book
 import time
+import pytest
 from reconnect import ReConnect
 
 
@@ -49,3 +50,40 @@ def test_monitor() -> None:
     finally:
         proc.terminate()
         proc.wait(timeout=5)
+
+
+@pytest.mark.parametrize("packet_type, packet", [
+    ("message",
+        {
+            "destination": address_book.RECONNECT_PORT,
+        }
+     ),
+
+    ("monitor",
+        {
+            "destination": address_book.RECONNECT_PORT,
+            "monitor_packet": True
+        }
+     ),
+
+    ("handover",
+        {
+            "destination": address_book.RECONNECT_PORT,
+            "handover_key": "0123456789abcdef"
+        }
+     ),
+
+    ("other",
+        {
+            "handover_key": "0123456789abcdef"
+        }
+     )
+])
+def test_determine_packet_type(packet_type: str, packet: dict) -> None:
+    """
+    Assert that ReConnect.determine_packet_type() can correctly differentiate
+    between packet types.
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+    detected_packet_type = rc.determine_packet_type(packet)
+    assert detected_packet_type == packet_type

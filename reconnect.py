@@ -56,22 +56,6 @@ class ReConnect:
 
         return connections
 
-    def receive_message(self) -> dict:
-        """
-        Listen for incoming TCP messages on port self.communications_port.
-
-        Returns
-        -------
-        dict
-            Returns received json object as a dictionary.
-
-        Raises
-        ------
-        OSError
-            Raises an OSError if self.communications_port becomes unavailable.
-        """
-        pass
-
     def determine_packet_type(self, message_json: dict) -> str:
         """
         Determine if a packet is a message to be delivered, a monitoring packet
@@ -92,7 +76,17 @@ class ReConnect:
             Returns string "handover" if packet is a handover request.
             Returns string "other" if packet type cannot be determined.
         """
-        pass
+
+        if "destination" not in message_json:
+            return "other"
+
+        if "handover_key" in message_json:
+            return "handover"
+
+        if "monitor_packet" in message_json:
+            return "monitor"
+
+        return "message"
 
     def get_destination_port(self, message_json: dict) -> int:
         """
@@ -138,6 +132,24 @@ class ReConnect:
         ------
         OSError
             Raises an OSError if self.tx_port cannot be used.
+        """
+        pass
+
+    def relay(self) -> tuple[int, int, int]:
+        """
+        Function as a substitute communications relay.
+
+        Returns
+        -------
+        tuple(int, int, int)
+            The number of messages, monitoring packets, and handover requests
+            that the ReConnect node received for the duration that it was
+            acting as a communications relay.
+
+        Raises
+        ------
+        OSError
+            If it could not take control of self.relay_port
         """
         pass
 
