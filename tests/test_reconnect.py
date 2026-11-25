@@ -55,20 +55,20 @@ def test_monitor() -> None:
 @pytest.mark.parametrize("packet_type, packet", [
     ("message",
         {
-            "destination": address_book.RECONNECT_PORT,
+            "destination": 5001,
         }
      ),
 
     ("monitor",
         {
-            "destination": address_book.RECONNECT_PORT,
+            "destination": 5002,
             "monitor_packet": True
         }
      ),
 
     ("handover",
         {
-            "destination": address_book.RECONNECT_PORT,
+            "destination": 5003,
             "handover_key": "0123456789abcdef"
         }
      ),
@@ -81,9 +81,41 @@ def test_monitor() -> None:
 ])
 def test_determine_packet_type(packet_type: str, packet: dict) -> None:
     """
-    Assert that ReConnect.determine_packet_type() can correctly differentiate
+    Assert that ReConnect._determine_packet_type() can correctly differentiate
     between packet types.
     """
     rc = ReConnect(address_book.RELAY_PORT)
-    detected_packet_type = rc.determine_packet_type(packet)
+    detected_packet_type = rc._determine_packet_type(packet)
     assert detected_packet_type == packet_type
+
+
+@pytest.mark.parametrize("expected_port, packet", [
+    (5001,
+        {
+            "destination": 5001,
+        }
+     ),
+
+    (5002,
+        {
+            "destination": 5002,
+            "monitor_packet": True
+        }
+     ),
+
+    (5003,
+        {
+            "destination": 5003,
+            "handover_key": "0123456789abcdef"
+        }
+     )
+])
+def test_get_destination_port(expected_port, packet) -> None:
+    """
+    Assert ReConnect._get_destination_port() can correctly read the destination
+    port in supported packet types.
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+    port = rc._get_destination_port(packet)
+    assert port == expected_port
+    assert isinstance(port, int)

@@ -56,7 +56,7 @@ class ReConnect:
 
         return connections
 
-    def determine_packet_type(self, message_json: dict) -> str:
+    def _determine_packet_type(self, message_json: dict) -> str:
         """
         Determine if a packet is a message to be delivered, a monitoring packet
         from another ReConnect node, or a handover request from a communication
@@ -88,7 +88,7 @@ class ReConnect:
 
         return "message"
 
-    def get_destination_port(self, message_json: dict) -> int:
+    def _get_destination_port(self, message_json: dict) -> int:
         """
         Parse a message packet to get the TCP port that it should be delivered
         to.
@@ -102,11 +102,9 @@ class ReConnect:
         Returns
         -------
         int
-            Returns the port number that the message should be delivered to if
-            the message packet's 'destination_port' field specifies a valid
-            TCP port. Else, returns -1.
+            Returns the port number that the message should be delivered to.
         """
-        pass
+        return message_json["destination"]
 
     def deliver(self, message_json: dict, destination_port: int) -> bool:
         """
