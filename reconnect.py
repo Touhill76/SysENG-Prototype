@@ -3,7 +3,7 @@
 from typing import Final
 import socket
 import json
-# import threading
+import threading
 import address_book
 from time import sleep
 
@@ -16,6 +16,15 @@ class ReConnect:
     def __init__(self, relay_port: int):
         self.ip_address = address_book.IP_ADDRESS
         self.relay_port: Final[int] = relay_port
+        self.connection_queue_size: Final[int] = 10
+        self.buffer_size: Final[int] = address_book.BUFFER_SIZE
+
+        self.handover: bool = False
+
+        self.tx_message_count: int = 0
+        self.rx_message_count: int = 0
+        self.rx_monitor_count: int = 0
+        self.rx_handover_count: int = 0
 
     def monitor(self) -> int:
         """
@@ -162,54 +171,70 @@ class ReConnect:
         Returns
         -------
         bool
-            Returns boolean True if sent message returns an acknowledgement
-            within TBD timeout. Returns False if message does not return an
-            acknowledgement within TBD seconds.
+            Returns boolean True if message is delivered successfully. Returns
+            boolean False if any errors are encountered whiel trying to deliver
+            message.
         """
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-            client.connect((address_book.IP_ADDRESS, destination_port))
-            client.sendall(packet)
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+                client.connect((address_book.IP_ADDRESS, destination_port))
+                client.sendall(packet)
+            return True
 
-    def relay(self) -> tuple[int, int, int]:
+        except ConnectionRefusedError:
+            return False
+
+    def _receive_message(self, connection: socket.socket) -> None:
+        """
+
+        """
+        with connection:
+
+            data = connection.recv(self.buffer_size)
+            packet = self._deserialize(data)
+
+            match self._determine_packet_type(packet):
+
+                # If packet is a monitor packet
+                case "monitor":
+                    self.rx_monitor_count += 1
+
+                # If packet is a message packet
+                case "message":
+                    self.rx_message_count += 1
+                    destination_port = self._get_destination_port(packet)
+                    packet = self._serialize(packet)
+                    if self._deliver(packet, destination_port):
+                        self.tx_message_count += 1
+
+                # If packet is a handover request
+                case "handover":
+                    self.tx_message_count += 1
+                    if self._test_handover_key(packet):
+                        self._handover = True
+
+                # Ignore any other packet types
+                case _:
+                        pass
+        return
+
+    def relay(self) -> None:
         """
         Function as a substitute communications relay.
-
-        Returns
-        -------
-        tuple(int, int, int)
-            The number of messages, monitoring packets, and handover requests
-            that the ReConnect node received for the duration that it was
-            acting as a communications relay.
 
         Raises
         ------
         OSError
             If it could not take control of self.relay_port
         """
-        pass
-
-    def release_communication_port(self, message_json) -> bool:
-        """
-        Release communication port back to the OS if and only if a handover
-        request packet with the release key is presented.
-
-        Parameters
-        ----------
-        message_json: dict
-            The contents of the received TCP packet, as a JSON object
-            represented by a Python dictionary.
-
-        Returns
-        -------
-        bool
-            Returns boolean True if release key was valid and
-            self.communication_port was successfully released to the OS.
-            Returns boolean False if release key was invalid.
-
-        Raises
-        ------
-        OSError
-            Raises OSError if self.communication port cannot be released to the
-            OS.
-        """
-        pass
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((self.ip_address, self.relay_port))
+            s.listen()
+            while not self.handover:
+                connection, address = s.accept()
+                t = threading.Thread(target=self.receive_message,
+                                     args=connection,
+                                     daemon=True)
+                t.start()
+        return None

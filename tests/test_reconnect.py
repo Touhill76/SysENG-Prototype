@@ -4,7 +4,9 @@ import sys
 import subprocess
 import address_book
 import time
+import json
 import pytest
+import threading
 from reconnect import ReConnect
 
 
@@ -170,3 +172,37 @@ def test_deserialize(message: dict) -> None:
     deserialized_packet = rc._deserialize(packet)
     assert deserialized_packet == message
     assert isinstance(deserialized_packet, dict)
+
+
+@pytest.mark.parametrize("key, destination_port, expected_tx, message_json", [
+    ("message", 6001, 1,
+    {
+        "destination": 6001,
+    }),
+
+    ("monitor", 6002, 0,
+    {
+        "destination": 6002,
+        "monitor_packet": True
+    }),
+
+    ("handover", 6003, 0,
+    {
+        "destination": 6003,
+        "handover_key": "0123456789abcdef"
+    })
+])
+def test_relay(key, destination_port, expected_tx, message_json) -> None:
+    """
+
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+
+    relay_thread = threading.Thread(target=rc.relay, daemon=True)
+    relay_thread.start()
+
+    print("relay_thread is running")
+
+    time.sleep(5)
+
+    print("done")
