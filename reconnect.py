@@ -69,6 +69,24 @@ class ReConnect:
 
         return connections
 
+    def _serialize(self, message_json: dict) -> bytes:
+        """
+        Convert a python dictionary representation of a JSON object into an
+        array pf bytes ready to send over TCP.
+
+        Parameters
+        ----------
+        message_json: dict
+            The JSON message to be sent, as a JSON object represented by a
+            Python dictionary.
+
+        Returns
+        -------
+        bytes
+            Returns the JSON object as bytes.
+        """
+        return json.dumps(message_json).encode("utf-8")
+
     def _deserialize(self, packet: bytes) -> dict:
         """
         Convert a received TCP packet from an array of bytes into a JSON object
@@ -111,17 +129,16 @@ class ReConnect:
             Returns string "handover" if packet is a handover request.
             Returns string "other" if packet type cannot be determined.
         """
-
-        if "destination" not in message_json:
-            return "other"
-
         if "handover_key" in message_json:
             return "handover"
 
         if "monitor_packet" in message_json:
             return "monitor"
 
-        return "message"
+        if "destination" in message_json:
+            return "message"
+
+        return "other"
 
     def _get_destination_port(self, message_json: dict) -> int:
         """
@@ -140,24 +157,6 @@ class ReConnect:
             Returns the port number that the message should be delivered to.
         """
         return message_json["destination"]
-
-    def _serialize(self, message_json: dict) -> bytes:
-        """
-        Convert a python dictionary representation of a JSON object into an
-        array pf bytes ready to send over TCP.
-
-        Parameters
-        ----------
-        message_json: dict
-            The JSON message to be sent, as a JSON object represented by a
-            Python dictionary.
-
-        Returns
-        -------
-        bytes
-            Returns the JSON object as bytes.
-        """
-        return json.dumps(message_json).encode("utf-8")
 
     def _deliver(self, packet: bytes, destination_port: int) -> bool:
         """
@@ -223,7 +222,7 @@ class ReConnect:
 
                 # Ignore any other packet types
                 case _:
-                        pass
+                    pass
         return
 
     def relay(self) -> None:

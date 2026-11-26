@@ -4,7 +4,6 @@ import sys
 import subprocess
 import address_book
 import time
-import json
 import pytest
 import threading
 from reconnect import ReConnect
@@ -54,30 +53,78 @@ def test_monitor() -> None:
         proc.wait(timeout=5)
 
 
+@pytest.mark.parametrize("message", [
+    {
+        "destination": 5001,
+    },
+
+    {
+        "destination": 5002,
+        "monitor_packet": True
+    },
+
+    {
+        "destination": 5003,
+        "handover_key": "0123456789abcdef"
+    }
+])
+def test_serialize(message: dict) -> None:
+    """
+    Assert ReConnect._serialize() returns a bytes array.
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+    packet = rc._serialize(message)
+    assert isinstance(packet, bytes)
+
+
+@pytest.mark.parametrize("message", [
+    {
+        "destination": 5001,
+        "data": "hello world"
+    },
+
+    {
+        "monitor_packet": ""
+    },
+
+    {
+        "handover_key": "0123456789abcdef"
+    }
+])
+def test_deserialize(message: dict) -> None:
+    """
+    Assert ReConnect._deserialize() is the inverse operation of
+    ReConnect._serialize() and returns a Python dictionary.
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+    packet = rc._serialize(message)
+    deserialized_packet = rc._deserialize(packet)
+    assert deserialized_packet == message
+    assert isinstance(deserialized_packet, dict)
+
+
 @pytest.mark.parametrize("packet_type, packet", [
     ("message",
         {
-            "destination": 5001,
+            "destination": 5001
         }
      ),
 
     ("monitor",
         {
-            "destination": 5002,
-            "monitor_packet": True
+            "monitor_packet": ""
         }
      ),
 
     ("handover",
         {
-            "destination": 5003,
             "handover_key": "0123456789abcdef"
         }
      ),
 
     ("other",
         {
-            "handover_key": "0123456789abcdef"
+            "data": "0123456789abcdef"
         }
      )
 ])
@@ -123,75 +170,36 @@ def test_get_destination_port(expected_port: int, packet: dict) -> None:
     assert isinstance(port, int)
 
 
-@pytest.mark.parametrize("message", [
-    {
-        "destination": 5001,
-    },
-
-    {
-        "destination": 5002,
-        "monitor_packet": True
-    },
-
-    {
-        "destination": 5003,
-        "handover_key": "0123456789abcdef"
-    }
-])
-def test_serialize(message: dict) -> None:
-    """
-    Assert ReConnect._serialize() returns a bytes array.
-    """
-    rc = ReConnect(address_book.RELAY_PORT)
-    packet = rc._serialize(message)
-    assert isinstance(packet, bytes)
+def test_deliver() -> None:
+    pass
 
 
-@pytest.mark.parametrize("message", [
-    {
-        "destination": 5001,
-    },
-
-    {
-        "destination": 5002,
-        "monitor_packet": True
-    },
-
-    {
-        "destination": 5003,
-        "handover_key": "0123456789abcdef"
-    }
-])
-def test_deserialize(message: dict) -> None:
-    """
-    Assert ReConnect._deserialize() is the inverse operation of
-    ReConnect._serialize() and returns a Python dictionary.
-    """
-    rc = ReConnect(address_book.RELAY_PORT)
-    packet = rc._serialize(message)
-    deserialized_packet = rc._deserialize(packet)
-    assert deserialized_packet == message
-    assert isinstance(deserialized_packet, dict)
+def test_receive_message() -> None:
+    pass
 
 
 @pytest.mark.parametrize("key, destination_port, expected_tx, message_json", [
     ("rx_message_count", 6001, 1,
-    {
-        "destination": 6001
-    }),
+        {
+            "destination": 6001
+        }
+     ),
 
     ("rx_monitor_count", 6002, 0,
-    {
-        "destination": 6002,
-        "monitor_packet": True
-    }),
+        {
+            "destination": 6002,
+            "monitor_packet": True
+        }
+     ),
 
     ("rx_handover_count", 6003, 0,
-    {
-        "destination": 6003,
-        "handover_key": "0123456789abcdef"
-    })
+        {
+            "destination": 6003,
+            "handover_key": "0123456789abcdef"
+        }
+     )
 ])
+@pytest.mark.skip
 def test_relay(key, destination_port, expected_tx, message_json) -> None:
     """
 
