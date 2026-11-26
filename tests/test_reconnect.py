@@ -177,7 +177,7 @@ def test_deserialize(message: dict) -> None:
 @pytest.mark.parametrize("key, destination_port, expected_tx, message_json", [
     ("rx_message_count", 6001, 1,
     {
-        "destination": 6001,
+        "destination": 6001
     }),
 
     ("rx_monitor_count", 6002, 0,
@@ -196,17 +196,13 @@ def test_relay(key, destination_port, expected_tx, message_json) -> None:
     """
 
     """
-    rc = ReConnect(address_book.RELAY_PORT)
+    time.sleep(1)
+    rc = ReConnect(0)
 
     relay_thread = threading.Thread(target=rc.relay, daemon=True)
     relay_thread.start()
 
-    print("relay_thread is running")
-
-    packet = rc._serialize(json.dumps(message_json))
-
-    print(f"packet type = {type(packet)}")
-
+    packet = rc._serialize(message_json)
     rc._deliver(packet, rc.relay_port)
 
     time.sleep(1)
@@ -215,6 +211,10 @@ def test_relay(key, destination_port, expected_tx, message_json) -> None:
 
     keys_list = list(rc.counters)
     keys_list.remove(key)
+
+    print(f"keys_list={keys_list}")
+    print(f"key={key}")
+    print(f"rc.counters={rc.counters}")
 
     assert rc.counters[key] == 1
 

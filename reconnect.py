@@ -44,12 +44,12 @@ class ReConnect:
             Returns the number of successful connections before the system
             being monitored failed to accept a connection.
         """
-        monitor_packet = {
+        data = {
             "destination": address_book.RECONNECT_PORT,
             "monitor_packet": True
         }
 
-        monitor_packet = json.dumps(monitor_packet).encode('utf-8')
+        monitor_packet = json.dumps(data).encode('utf-8')
 
         connections = 0
 
@@ -209,8 +209,8 @@ class ReConnect:
                     with self.lock:
                         self.counters["rx_message_count"] += 1
                     destination_port = self._get_destination_port(packet)
-                    packet = self._serialize(packet)
-                    if self._deliver(packet, destination_port):
+                    message = self._serialize(packet)
+                    if self._deliver(message, destination_port):
                         with self.lock:
                             self.counters["tx_message_count"] += 1
 
