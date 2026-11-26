@@ -1,22 +1,26 @@
 # address_book.py
 #
-# This file keeps track of all TCP ports in use.
+# This file keeps track of all project-wide ports, addresses, and constants.
 
-IP_ADDRESS = '127.0.0.1'
-BUFFER_SIZE = 1000
+from typing import Final
+
+IP_ADDRESS: Final[str] = 'localhost'
+BUFFER_SIZE: Final[int] = 1000
 
 # Transmitters send data to here
-RELAY_PORT = 5001
+RELAY_PORT: Final[int] = 5001
 
 # Relay sends data here to request communications handover from ReConnect
-RECONNECT_PORT = 5025
+RECONNECT_PORT: Final[int] = 5025
 
-RECONNECT_HANDOVER_KEY = "0123456789abcdef"
+# Key that relay node must present to ReConnect when requesting ReConnect to
+# handover RELAY_PORT
+RECONNECT_HANDOVER_KEY: Final[str] = "0123456789abcdef"
 
 # Transmitters
-TX_1 = 5005
-TX_2 = 5010
+TX_1: Final[int] = 5005
+TX_2: Final[int] = 5010
 
 # Receivers
-RX_1 = 5015
-RX_2 = 5020
+RX_1: Final[int] = 5015
+RX_2: Final[int] = 5020

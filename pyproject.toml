@@ -5,3 +5,13 @@ minversion = "6.0"
 addopts = "-v"
 testpaths = ["tests"]
 pythonpath = ["."]
+
+
+[tool.mypy]
+exclude = [
+    "receiver.py",
+    "relay.py",
+    "Rx2.py",
+    "transmitter_2.py",
+    "Transmitter.py",
+]

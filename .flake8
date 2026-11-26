@@ -1,0 +1,7 @@
+[flake8]
+exclude =
+    receiver.py,
+    relay.py,
+    Rx2.py,
+    transmitter_2.py,
+    Transmitter.py
