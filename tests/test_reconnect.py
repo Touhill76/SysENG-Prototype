@@ -175,18 +175,18 @@ def test_deserialize(message: dict) -> None:
 
 
 @pytest.mark.parametrize("key, destination_port, expected_tx, message_json", [
-    ("message", 6001, 1,
+    ("rx_message_count", 6001, 1,
     {
         "destination": 6001,
     }),
 
-    ("monitor", 6002, 0,
+    ("rx_monitor_count", 6002, 0,
     {
         "destination": 6002,
         "monitor_packet": True
     }),
 
-    ("handover", 6003, 0,
+    ("rx_handover_count", 6003, 0,
     {
         "destination": 6003,
         "handover_key": "0123456789abcdef"
@@ -203,6 +203,23 @@ def test_relay(key, destination_port, expected_tx, message_json) -> None:
 
     print("relay_thread is running")
 
-    time.sleep(5)
+    packet = rc._serialize(json.dumps(message_json))
 
-    print("done")
+    print(f"packet type = {type(packet)}")
+
+    rc._deliver(packet, rc.relay_port)
+
+    time.sleep(1)
+    rc._handover = True
+    time.sleep(1)
+
+    keys_list = list(rc.counters)
+    keys_list.remove(key)
+
+    assert rc.counters[key] == 1
+
+    for entry in keys_list:
+        assert rc.counters[entry] == 0
+
+    if expected_tx > 0:
+        assert rc.counters["tx_message_count"] == expected_tx

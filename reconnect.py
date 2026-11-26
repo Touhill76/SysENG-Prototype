@@ -19,12 +19,16 @@ class ReConnect:
         self.connection_queue_size: Final[int] = 10
         self.buffer_size: Final[int] = address_book.BUFFER_SIZE
 
-        self.handover: bool = False
+        self.lock = threading.Lock()
 
-        self.tx_message_count: int = 0
-        self.rx_message_count: int = 0
-        self.rx_monitor_count: int = 0
-        self.rx_handover_count: int = 0
+        self._handover: bool = False
+
+        self.counters = {
+            "tx_message_count": 0,
+            "rx_message_count": 0,
+            "rx_monitor_count": 0,
+            "rx_handover_count": 0
+        }
 
     def monitor(self) -> int:
         """
@@ -197,19 +201,23 @@ class ReConnect:
 
                 # If packet is a monitor packet
                 case "monitor":
-                    self.rx_monitor_count += 1
+                    with self.lock:
+                        self.counters["rx_monitor_count"] += 1
 
                 # If packet is a message packet
                 case "message":
-                    self.rx_message_count += 1
+                    with self.lock:
+                        self.counters["rx_message_count"] += 1
                     destination_port = self._get_destination_port(packet)
                     packet = self._serialize(packet)
                     if self._deliver(packet, destination_port):
-                        self.tx_message_count += 1
+                        with self.lock:
+                            self.counters["tx_message_count"] += 1
 
                 # If packet is a handover request
                 case "handover":
-                    self.tx_message_count += 1
+                    with self.lock:
+                        self.counters["rx_handover_count"] += 1
                     if self._test_handover_key(packet):
                         self._handover = True
 
@@ -231,10 +239,10 @@ class ReConnect:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((self.ip_address, self.relay_port))
             s.listen()
-            while not self.handover:
+            while not self._handover:
                 connection, address = s.accept()
-                t = threading.Thread(target=self.receive_message,
-                                     args=connection,
+                t = threading.Thread(target=self._receive_message,
+                                     args=(connection,),
                                      daemon=True)
                 t.start()
         return None
