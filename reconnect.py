@@ -14,10 +14,11 @@ class ReConnect:
     """
 
     def __init__(self, relay_port: int):
-        self.ip_address = address_book.IP_ADDRESS
-        self.relay_port: Final[int] = relay_port
-        self.connection_queue_size: Final[int] = 10
-        self.buffer_size: Final[int] = address_book.BUFFER_SIZE
+        self._ip_address = address_book.IP_ADDRESS
+        self._relay_port: Final[int] = relay_port
+        self._connection_queue_size: Final[int] = 10
+        self._buffer_size: Final[int] = address_book.BUFFER_SIZE
+        self._handover_key: Final[str] = address_book.RECONNECT_HANDOVER_KEY
 
         self.lock = threading.Lock()
 
@@ -57,8 +58,8 @@ class ReConnect:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(0.1)
-                    s.connect((self.ip_address,
-                               self.relay_port))
+                    s.connect((self._ip_address,
+                               self._relay_port))
                     s.sendall(monitor_packet)
                     connections += 1
 
@@ -158,6 +159,24 @@ class ReConnect:
         """
         return message_json["destination"]
 
+    def _test_handover_key(self, message_json: dict) -> bool:
+        """
+        Check if the key provided in a handover request is the correct key.
+
+        Parameters
+        ----------
+        message_json: dict
+            The contents of the received TCP packet, as a JSON object
+            represented by a Python dictionary.
+
+        Returns
+        -------
+        bool
+            Returns boolean True if handover request key is the correct key.
+            Returns False otherwise.
+        """
+        return message_json["handover_key"] == self._handover_key
+
     def _deliver(self, packet: bytes, destination_port: int) -> bool:
         """
         Deliver a message to it's specified destination.
@@ -193,7 +212,7 @@ class ReConnect:
         """
         with connection:
 
-            data = connection.recv(self.buffer_size)
+            data = connection.recv(self._buffer_size)
             packet = self._deserialize(data)
 
             match self._determine_packet_type(packet):
@@ -218,7 +237,8 @@ class ReConnect:
                     with self.lock:
                         self.counters["rx_handover_count"] += 1
                     if self._test_handover_key(packet):
-                        self._handover = True
+                        with self.lock:
+                            self._handover = True
 
                 # Ignore any other packet types
                 case _:
@@ -236,7 +256,7 @@ class ReConnect:
         """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind((self.ip_address, self.relay_port))
+            s.bind((self._ip_address, self._relay_port))
             s.listen()
             while not self._handover:
                 connection, address = s.accept()

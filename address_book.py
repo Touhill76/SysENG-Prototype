@@ -11,6 +11,8 @@ RELAY_PORT = 5001
 # Relay sends data here to request communications handover from ReConnect
 RECONNECT_PORT = 5025
 
+RECONNECT_HANDOVER_KEY = "0123456789abcdef"
+
 # Transmitters
 TX_1 = 5005
 TX_2 = 5010

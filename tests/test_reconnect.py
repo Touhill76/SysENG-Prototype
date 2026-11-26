@@ -148,14 +148,14 @@ def test_determine_packet_type(packet_type: str, packet: dict) -> None:
     (5002,
         {
             "destination": 5002,
-            "monitor_packet": True
+            "data": "hello world"
         }
      ),
 
     (5003,
         {
             "destination": 5003,
-            "handover_key": "0123456789abcdef"
+            "status": "ok"
         }
      )
 ])
@@ -168,6 +168,20 @@ def test_get_destination_port(expected_port: int, packet: dict) -> None:
     port = rc._get_destination_port(packet)
     assert port == expected_port
     assert isinstance(port, int)
+
+
+@pytest.mark.parametrize("message_json, expected_result", [
+    ({"handover_key": address_book.RECONNECT_HANDOVER_KEY}, True),
+    ({"handover_key": "1234567890"}, False),
+    ({"handover_key": ""}, False)
+])
+def test_handover_key(message_json: dict, expected_result: bool) -> None:
+    """
+    Assert that ReConnect._test_handover_key can correctly indentify whether
+    or not the correct key has been presented.
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+    assert rc._test_handover_key(message_json) == expected_result
 
 
 def test_deliver() -> None:
@@ -211,7 +225,7 @@ def test_relay(key, destination_port, expected_tx, message_json) -> None:
     relay_thread.start()
 
     packet = rc._serialize(message_json)
-    rc._deliver(packet, rc.relay_port)
+    rc._deliver(packet, rc._relay_port)
 
     time.sleep(1)
     rc._handover = True
