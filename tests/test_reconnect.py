@@ -33,6 +33,9 @@ def test_monitor() -> None:
         stdout=subprocess.PIPE, text=True,
     )
 
+    # Explicit typecheck to satisfy static analysis
+    assert proc.stdout is not None
+
     # Wait until dummy relay is ready to start accepting connections
     while True:
         time.sleep(0.01)
@@ -184,8 +187,60 @@ def test_handover_key(message_json: dict, expected_result: bool) -> None:
     assert rc._test_handover_key(message_json) == expected_result
 
 
-def test_deliver() -> None:
-    pass
+@pytest.mark.parametrize("destination_port, message_json", [
+    (address_book.RX_1,
+        {
+            "destination": address_book.RX_1,
+            "data": "hello_world"
+        }
+     ),
+    (address_book.RX_2,
+        {
+            "destination": address_book.RX_2,
+            "data": "hello_world"
+        }
+     )
+])
+def test_deliver(destination_port: int, message_json: dict) -> None:
+    """
+    Assert that ReConnect._deliver can successfully send a TCP message to the
+    specfied destination port.
+    """
+    # Spawn subprocess
+    proc = subprocess.Popen(
+        [sys.executable,
+         "tests/dummy_relay.py",
+         str(destination_port),
+         "1"],
+        stdout=subprocess.PIPE, text=True,
+    )
+
+    # Explicit typecheck to satisfy static analysis
+    assert proc.stdout is not None
+
+    # Wait until dummy relay is ready to start accepting connections
+    while True:
+        time.sleep(0.01)
+        if proc.stdout.readline().strip() == "ready":
+            break
+
+    try:
+        rc = ReConnect(destination_port)
+        packet = rc._serialize(message_json)
+        result_1 = rc._deliver(packet, destination_port)
+
+        # Wait until port is no longer open
+        rc.monitor()
+
+        result_2 = rc._deliver(packet, destination_port)
+
+        assert result_1 is True
+        assert result_2 is False
+
+    # Cleanup spawned subprocess
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
 
 
 def test_receive_message() -> None:
