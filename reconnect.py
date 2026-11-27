@@ -32,13 +32,18 @@ class ReConnect:
             "rx_handover_count": 0
         }
 
-    def monitor(self) -> int:
+    def monitor(self, limit: int = 0) -> int:
         """
         Monitor the status of existing communications network by connecting 10
         times per second.
 
-        This method blocks indefinitely for as long as the communications
-        system being monitored continues to accept connections.
+        Parameters
+        ----------
+        limit: int
+            Optional parameter that allows user to specify a maximum number of
+            connections before quitting. Default value of 0 means that no limit
+            will be imposed and monitor will continue to run indefinitely until
+            the system being monitored stops accepting connections.
 
         Returns
         -------
@@ -55,19 +60,34 @@ class ReConnect:
 
         connections = 0
 
-        while True:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.1)
-                    s.connect((self._ip_address,
-                               self._relay_port))
-                    s.sendall(monitor_packet)
-                    connections += 1
+        if limit:
+            for i in range(limit):
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(0.1)
+                        s.connect((self._ip_address,
+                            self._relay_port))
+                        s.sendall(monitor_packet)
+                        connections += 1
+                except Exception:
+                    break
 
-            except Exception:
-                break
+                sleep(0.1)
 
-            sleep(0.1)
+        else:
+            while True:
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(0.1)
+                        s.connect((self._ip_address,
+                            self._relay_port))
+                        s.sendall(monitor_packet)
+                        connections += 1
+
+                except Exception:
+                    break
+
+                sleep(0.1)
 
         return connections
 
@@ -297,11 +317,13 @@ class ReConnect:
 if __name__ == "__main__":
 
     relay_port: Final[int] = int(sys.argv[1])
-    output_file: Final[str] = sys.argv[2]
+    monitor_limit: Final[int] = int(sys.argv[2])
+    output_file: Final[str] = sys.argv[3]
 
     rc = ReConnect(relay_port)
-    rc.monitor()
+    rc.monitor(limit=monitor_limit)
     rc.relay()
     rc.export_counters(output_file)
+    print("file written", flush=True)
 
     sys.exit(0)
