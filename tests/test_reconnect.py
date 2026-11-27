@@ -28,7 +28,7 @@ def test_monitor() -> None:
     # Spawn subprocess
     proc = subprocess.Popen(
         [sys.executable,
-         "tests/dummy_relay.py",
+         "tests/dummy_server.py",
          str(address_book.RELAY_PORT),
          str(expected_connections)],
         stdout=subprocess.PIPE, text=True,
@@ -210,7 +210,7 @@ def test_deliver(destination_port: int, message_json: dict) -> None:
     # Spawn subprocess
     proc = subprocess.Popen(
         [sys.executable,
-         "tests/dummy_relay.py",
+         "tests/dummy_server.py",
          str(destination_port),
          "1"],
         stdout=subprocess.PIPE, text=True,

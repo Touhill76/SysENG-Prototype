@@ -1,4 +1,4 @@
-# tests/dummy_relay.py
+# tests/dummy_server.py
 
 import sys
 import socket
