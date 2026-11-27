@@ -4,7 +4,9 @@ import sys
 import subprocess
 import address_book
 import time
+import json
 import pytest
+from tempfile import NamedTemporaryFile
 from reconnect import ReConnect
 
 
@@ -278,3 +280,37 @@ def test_handle_received_packet(key: str, message_json: dict) -> None:
 
     for entry in keys_list:
         assert rc.counters[entry] == 0
+
+
+@pytest.mark.parametrize("counters", [
+    {
+        "tx_message_count": 0,
+        "rx_message_count": 0,
+        "rx_monitor_count": 0,
+        "rx_handover_count": 0
+    },
+    {
+        "tx_message_count": 5,
+        "rx_message_count": 7,
+        "rx_monitor_count": 19,
+        "rx_handover_count": 1
+    },
+    {
+        "tx_message_count": 12345,
+        "rx_message_count": 12345,
+        "rx_monitor_count": 48917,
+        "rx_handover_count": 13
+    }
+])
+def test_export_counters(counters: dict) -> None:
+    """
+    Assert that ReConnect._export_counters() exports the correct values as
+    a valid JSON file.
+    """
+    rc = ReConnect(0)
+    rc.counters = counters
+    with NamedTemporaryFile(mode='w+t', suffix='.txt') as temp_file:
+        rc._export_counters(temp_file.name)
+        with open(temp_file.name, 'r') as file:
+            saved_data = json.load(file)
+            assert saved_data == rc.counters

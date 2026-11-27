@@ -251,6 +251,24 @@ class ReConnect:
                 pass
         return
 
+    def _export_counters(self, path: str) -> None:
+        """
+        Write self.counters to a JSON file.
+
+        Parameters
+        ----------
+        path: str
+            Path to where JSON file should be written.
+
+        Raises
+        ------
+        FileNotFoundError
+            If parameter 'path' points to a location that does not exist or
+            a location that the user does not have permission to access.
+        """
+        with open(path, "w", encoding="utf-8") as outfile:
+            json.dump(self.counters, outfile, indent=4)
+
     def relay(self) -> None:
         """
         Function as a substitute communications relay.
