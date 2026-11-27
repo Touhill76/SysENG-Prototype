@@ -206,43 +206,49 @@ class ReConnect:
         except ConnectionRefusedError:
             return False
 
-    def _receive_message(self, connection: socket.socket) -> None:
+    def _handle_received_packet(self, data: bytes) -> None:
         """
+        Parse a received packet and determine what to do with it.
 
+        Note that this method returns None since it is intended to run as a
+        thread. Rather than returning a value, it uses a thread lock to safely
+        update class attributes.
+
+        Parameters
+        ----------
+        data: bytes
+            The received TCP packet.
         """
-        with connection:
+        packet = self._deserialize(data)
 
-            data = connection.recv(self._buffer_size)
-            packet = self._deserialize(data)
+        match self._determine_packet_type(packet):
 
-            match self._determine_packet_type(packet):
+            # If packet is a monitor packet
+            case "monitor":
+                with self.lock:
+                    self.counters["rx_monitor_count"] += 1
 
-                # If packet is a monitor packet
-                case "monitor":
+            # If packet is a message packet
+            case "message":
+                with self.lock:
+                    self.counters["rx_message_count"] += 1
+                destination_port = self._get_destination_port(packet)
+                message = self._serialize(packet)
+                if self._deliver(message, destination_port):
                     with self.lock:
-                        self.counters["rx_monitor_count"] += 1
+                        self.counters["tx_message_count"] += 1
 
-                # If packet is a message packet
-                case "message":
+            # If packet is a handover request
+            case "handover":
+                with self.lock:
+                    self.counters["rx_handover_count"] += 1
+                if self._test_handover_key(packet):
                     with self.lock:
-                        self.counters["rx_message_count"] += 1
-                    destination_port = self._get_destination_port(packet)
-                    message = self._serialize(packet)
-                    if self._deliver(message, destination_port):
-                        with self.lock:
-                            self.counters["tx_message_count"] += 1
+                        self._handover = True
 
-                # If packet is a handover request
-                case "handover":
-                    with self.lock:
-                        self.counters["rx_handover_count"] += 1
-                    if self._test_handover_key(packet):
-                        with self.lock:
-                            self._handover = True
-
-                # Ignore any other packet types
-                case _:
-                    pass
+            # Ignore any other packet types
+            case _:
+                pass
         return
 
     def relay(self) -> None:
@@ -260,8 +266,9 @@ class ReConnect:
             s.listen()
             while not self._handover:
                 connection, address = s.accept()
-                t = threading.Thread(target=self._receive_message,
-                                     args=(connection,),
+                packet = connection.recv(self._buffer_size)
+                t = threading.Thread(target=self._handle_received_packet,
+                                     args=(packet,),
                                      daemon=True)
                 t.start()
         return None

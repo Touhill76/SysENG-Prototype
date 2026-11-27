@@ -5,7 +5,6 @@ import subprocess
 import address_book
 import time
 import pytest
-import threading
 from reconnect import ReConnect
 
 
@@ -243,60 +242,39 @@ def test_deliver(destination_port: int, message_json: dict) -> None:
         proc.wait(timeout=5)
 
 
-def test_receive_message() -> None:
-    pass
-
-
-@pytest.mark.parametrize("key, destination_port, expected_tx, message_json", [
-    ("rx_message_count", 6001, 1,
+@pytest.mark.parametrize("key, message_json", [
+    ("rx_message_count",
         {
-            "destination": 6001
+            "destination": 6001,
+            "data": "hello world"
         }
      ),
 
-    ("rx_monitor_count", 6002, 0,
+    ("rx_monitor_count",
         {
-            "destination": 6002,
-            "monitor_packet": True
+            "monitor_packet": ""
         }
      ),
 
-    ("rx_handover_count", 6003, 0,
+    ("rx_handover_count",
         {
-            "destination": 6003,
             "handover_key": "0123456789abcdef"
         }
      )
 ])
-@pytest.mark.skip
-def test_relay(key, destination_port, expected_tx, message_json) -> None:
+def test_handle_received_packet(key: str, message_json: dict) -> None:
     """
-
+    Assert that ReConnect._handle_received_packet() can correctly handle all
+    supported packet types.
     """
-    time.sleep(1)
     rc = ReConnect(0)
-
-    relay_thread = threading.Thread(target=rc.relay, daemon=True)
-    relay_thread.start()
-
     packet = rc._serialize(message_json)
-    rc._deliver(packet, rc._relay_port)
-
-    time.sleep(1)
-    rc._handover = True
-    time.sleep(1)
+    rc._handle_received_packet(packet)
 
     keys_list = list(rc.counters)
     keys_list.remove(key)
-
-    print(f"keys_list={keys_list}")
-    print(f"key={key}")
-    print(f"rc.counters={rc.counters}")
 
     assert rc.counters[key] == 1
 
     for entry in keys_list:
         assert rc.counters[entry] == 0
-
-    if expected_tx > 0:
-        assert rc.counters["tx_message_count"] == expected_tx
