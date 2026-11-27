@@ -3,9 +3,9 @@
 import sys
 import os
 import signal
-import time
 import socket
 import json
+from time import sleep
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile
 from reconnect import ReConnect
@@ -60,7 +60,7 @@ def spawn_subprocess(script: str,
 
         # Block until readiness indicator is received
         while True:
-            time.sleep(0.01)
+            sleep(0.01)
             if proc.stdout.readline().strip() == readiness_indicator:
                 break
 
@@ -114,9 +114,10 @@ def test_system() -> None:
             [str(address_book.RELAY_PORT), "20", temp_file])
         pids.append(reconnect.pid)
 
-        # Reconnect sends monitor packets until dummy_server.py closes
-
-        # Upon seeing the relay go down, ReConnect enters relay mode
+        # ReConnect will not enter monitor mode until dummy_server.py closes.
+        # Block execution until dummy_server.py's PID is no longer active.
+        while relay.poll() is None:
+            sleep(0.1)
 
         # Spawn Receivers
         rx_1 = spawn_subprocess("tests/dummy_server.py",
@@ -146,20 +147,12 @@ def test_system() -> None:
             client.connect(('localhost', address_book.RELAY_PORT))
             client.sendall(packet)
 
-        print("marker 1")
-
         # Confirm that ReConnect has let go of the port
         mc = rc.monitor(limit=10)
 
-        print(f"mc={mc}")
-
         # Wait for ReConnect to finish writing counters file
-        while True:
-            time.sleep(0.01)
-            if reconnect.stdout.readline().strip() == "file written":
-                break
-
-        print("marker 2")
+        while reconnect.poll() is None:
+            sleep(0.01)
 
         # Read counters file and confirm expected entries
         with open(temp_file, 'r') as file:
@@ -174,8 +167,18 @@ def test_system() -> None:
 
             assert counters == expected_counters
 
-    # Clean up any processes that are still running
+    # Clean up temp file and kill any processes that are still running
     finally:
         for pid in pids:
-            os.kill(pid, signal.SIGTERM)
-        os.remove(temp_file)
+            try:
+                os.kill(pid, signal.SIGTERM)
+
+            # Ignore processes that have already closed
+            except ProcessLookupError:
+                pass
+
+            # Ignore if test failed before file was created
+            try:
+                os.remove(temp_file)
+            except FileNotFoundError:
+                pass
