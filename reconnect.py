@@ -10,9 +10,6 @@ from time import sleep
 
 
 class ReConnect:
-    """
-
-    """
 
     def __init__(self, relay_port: int):
         self._ip_address = address_book.IP_ADDRESS
@@ -326,6 +323,5 @@ if __name__ == "__main__":
     rc.monitor(limit=monitor_limit)
     rc.relay()
     rc.export_counters(output_file)
-    print("file written", flush=True)
 
     sys.exit(0)
