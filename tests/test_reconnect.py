@@ -304,13 +304,13 @@ def test_handle_received_packet(key: str, message_json: dict) -> None:
 ])
 def test_export_counters(counters: dict) -> None:
     """
-    Assert that ReConnect._export_counters() exports the correct values as
+    Assert that ReConnect.export_counters() exports the correct values as
     a valid JSON file.
     """
     rc = ReConnect(0)
     rc.counters = counters
     with NamedTemporaryFile(mode='w+t', suffix='.txt') as temp_file:
-        rc._export_counters(temp_file.name)
+        rc.export_counters(temp_file.name)
         with open(temp_file.name, 'r') as file:
             saved_data = json.load(file)
             assert saved_data == rc.counters

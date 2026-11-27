@@ -1,10 +1,11 @@
 # reconnect.py
 
-from typing import Final
+import sys
 import socket
 import json
 import threading
 import address_book
+from typing import Final
 from time import sleep
 
 
@@ -251,7 +252,7 @@ class ReConnect:
                 pass
         return
 
-    def _export_counters(self, path: str) -> None:
+    def export_counters(self, path: str) -> None:
         """
         Write self.counters to a JSON file.
 
@@ -290,3 +291,17 @@ class ReConnect:
                                      daemon=True)
                 t.start()
         return None
+
+
+# Integration test code
+if __name__ == "__main__":
+
+    relay_port: Final[int] = int(sys.argv[1])
+    output_file: Final[str] = sys.argv[2]
+
+    rc = ReConnect(relay_port)
+    rc.monitor()
+    rc.relay()
+    rc.export_counters(output_file)
+
+    sys.exit(0)
