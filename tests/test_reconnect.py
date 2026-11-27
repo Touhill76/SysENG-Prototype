@@ -314,3 +314,13 @@ def test_export_counters(counters: dict) -> None:
         with open(temp_file.name, 'r') as file:
             saved_data = json.load(file)
             assert saved_data == rc.counters
+
+
+def test_export_counters_raises() -> None:
+    """
+    Assert that ReConnect.export_counters() raises a FileNotFoundError
+    exception if provided a path to a location that does not exist.
+    """
+    rc = ReConnect(0)
+    with pytest.raises(FileNotFoundError):
+        rc.export_counters("/this/location/does/not/exist")
