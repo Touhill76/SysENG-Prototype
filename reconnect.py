@@ -63,10 +63,11 @@ class ReConnect:
         if limit:
             for i in range(limit):
                 try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    with socket.socket(socket.AF_INET,
+                                       socket.SOCK_STREAM) as s:
                         s.settimeout(0.1)
                         s.connect((self._ip_address,
-                            self._relay_port))
+                                   self._relay_port))
                         s.sendall(monitor_packet)
                         connections += 1
                 except Exception:
@@ -77,10 +78,11 @@ class ReConnect:
         else:
             while True:
                 try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    with socket.socket(socket.AF_INET,
+                                       socket.SOCK_STREAM) as s:
                         s.settimeout(0.1)
                         s.connect((self._ip_address,
-                            self._relay_port))
+                                   self._relay_port))
                         s.sendall(monitor_packet)
                         connections += 1
 

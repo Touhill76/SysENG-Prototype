@@ -8,6 +8,7 @@ import json
 from time import sleep
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile
+from typing import Final
 from reconnect import ReConnect
 import address_book
 
@@ -50,9 +51,8 @@ def spawn_subprocess(script: str,
 
     # Spawn subprocess
     proc = Popen(command,
-        stdout=PIPE,
-        text=True,
-    )
+                 stdout=PIPE,
+                 text=True)
 
     # If user passed a readiness indicator
     if readiness_indicator:
@@ -65,6 +65,7 @@ def spawn_subprocess(script: str,
                 break
 
     return proc
+
 
 def create_message(destination_port: int, message: str) -> bytes:
     """
@@ -83,12 +84,12 @@ def create_message(destination_port: int, message: str) -> bytes:
     bytes
         Returns message ready to send using TCP socket.
     """
-    message = {
+    message_json = {
         "destination": destination_port,
         "message": message
     }
     rc = ReConnect(0)
-    return rc._serialize(message)
+    return rc._serialize(message_json)
 
 
 # ReConnect integration test
@@ -105,13 +106,16 @@ def test_system() -> None:
     try:
         # Spawn communications system
         relay = spawn_subprocess("tests/dummy_server.py",
-            [str(address_book.RELAY_PORT), str(n_connections)],
-            "ready")
+                                 [str(address_book.RELAY_PORT),
+                                  str(n_connections)],
+                                 "ready")
         pids.append(relay.pid)
 
         # Spawn ReConnect
         reconnect = spawn_subprocess("reconnect.py",
-            [str(address_book.RELAY_PORT), "20", temp_file])
+                                     [str(address_book.RELAY_PORT),
+                                      "20",
+                                      temp_file])
         pids.append(reconnect.pid)
 
         # ReConnect will not enter monitor mode until dummy_server.py closes.
@@ -121,12 +125,14 @@ def test_system() -> None:
 
         # Spawn Receivers
         rx_1 = spawn_subprocess("tests/dummy_server.py",
-            [str(address_book.RX_1), str(n_connections)],
-            "ready")
+                                [str(address_book.RX_1),
+                                 str(n_connections)],
+                                "ready")
         pids.append(rx_1.pid)
         rx_2 = spawn_subprocess("tests/dummy_server.py",
-            [str(address_book.RX_2), str(n_connections)],
-            "ready")
+                                [str(address_book.RX_2),
+                                 str(n_connections)],
+                                "ready")
         pids.append(rx_2.pid)
 
         # Send messages to receivers via ReConnect
@@ -134,21 +140,21 @@ def test_system() -> None:
         for i in range(n_connections):
             for destination in destinations:
                 message = create_message(destination, str(i))
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-                    client.connect(('localhost', address_book.RELAY_PORT))
-                    client.sendall(message)
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.connect(('localhost', address_book.RELAY_PORT))
+                    s.sendall(message)
 
         # Send handover request to ReConnect
-        handover_request = {"handover_key": address_book.RECONNECT_HANDOVER_KEY}
+        request = {"handover_key": address_book.RECONNECT_HANDOVER_KEY}
         rc = ReConnect(address_book.RELAY_PORT)
-        packet = rc._serialize(handover_request)
+        packet = rc._serialize(request)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
             client.connect(('localhost', address_book.RELAY_PORT))
             client.sendall(packet)
 
-        # Confirm that ReConnect has let go of the port
-        mc = rc.monitor(limit=10)
+        # Block until ReConnect lets go of the port
+        rc.monitor(limit=10)
 
         # Wait for ReConnect to finish writing counters file
         while reconnect.poll() is None:
