@@ -5,7 +5,7 @@ import socket
 import json
 import threading
 import address_book
-from typing import Final
+from typing import Final, Optional
 from time import sleep
 
 
@@ -21,6 +21,7 @@ class ReConnect:
         self.lock = threading.Lock()
 
         self._handover: bool = False
+        self._connections: set[socket.socket] = set()
 
         self.counters = {
             "tx_message_count": 0,
@@ -159,6 +160,10 @@ class ReConnect:
         if "destination" in message_json:
             return "message"
 
+        # Transmitters and relay.py name the field "destination_port"
+        if "destination_port" in message_json:
+            return "message"
+
         return "other"
 
     def _get_destination_port(self, message_json: dict) -> int:
@@ -177,7 +182,9 @@ class ReConnect:
         int
             Returns the port number that the message should be delivered to.
         """
-        return message_json["destination"]
+        if "destination" in message_json:
+            return int(message_json["destination"])
+        return int(message_json["destination_port"])
 
     def _test_handover_key(self, message_json: dict) -> bool:
         """
@@ -219,12 +226,69 @@ class ReConnect:
         """
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+                client.settimeout(2)
                 client.connect((address_book.IP_ADDRESS, destination_port))
                 client.sendall(packet)
             return True
 
-        except ConnectionRefusedError:
+        except OSError:
             return False
+
+    def _process_packet(self, packet: dict) -> Optional[dict]:
+        """
+        Act on one received packet and return the reply for its sender.
+
+        Parameters
+        ----------
+        packet: dict
+            The received packet, as a JSON object represented by a Python
+            dictionary.
+
+        Returns
+        -------
+        dict or None
+            For a message: an ACK {"message_id", "status", "handled_by"}
+            with status "accepted" if it was delivered, else "failed".
+            For a handover request: {"status": "released"} or
+            {"status": "refused"}. For anything else: None (no reply).
+        """
+        match self._determine_packet_type(packet):
+
+            # If packet is a monitor packet
+            case "monitor":
+                with self.lock:
+                    self.counters["rx_monitor_count"] += 1
+                return None
+
+            # If packet is a message packet
+            case "message":
+                with self.lock:
+                    self.counters["rx_message_count"] += 1
+                destination_port = self._get_destination_port(packet)
+                message = self._serialize(packet)
+                delivered = self._deliver(message, destination_port)
+                if delivered:
+                    with self.lock:
+                        self.counters["tx_message_count"] += 1
+                return {
+                    "message_id": packet.get("message_id"),
+                    "status": "accepted" if delivered else "failed",
+                    "handled_by": "reconnect"
+                }
+
+            # If packet is a handover request
+            case "handover":
+                with self.lock:
+                    self.counters["rx_handover_count"] += 1
+                if self._test_handover_key(packet):
+                    with self.lock:
+                        self._handover = True
+                    return {"status": "released"}
+                return {"status": "refused"}
+
+            # Ignore any other packet types
+            case _:
+                return None
 
     def _handle_received_packet(self, data: bytes) -> None:
         """
@@ -239,37 +303,77 @@ class ReConnect:
         data: bytes
             The received TCP packet.
         """
-        packet = self._deserialize(data)
-
-        match self._determine_packet_type(packet):
-
-            # If packet is a monitor packet
-            case "monitor":
-                with self.lock:
-                    self.counters["rx_monitor_count"] += 1
-
-            # If packet is a message packet
-            case "message":
-                with self.lock:
-                    self.counters["rx_message_count"] += 1
-                destination_port = self._get_destination_port(packet)
-                message = self._serialize(packet)
-                if self._deliver(message, destination_port):
-                    with self.lock:
-                        self.counters["tx_message_count"] += 1
-
-            # If packet is a handover request
-            case "handover":
-                with self.lock:
-                    self.counters["rx_handover_count"] += 1
-                if self._test_handover_key(packet):
-                    with self.lock:
-                        self._handover = True
-
-            # Ignore any other packet types
-            case _:
-                pass
+        self._process_packet(self._deserialize(data))
         return
+
+    @staticmethod
+    def _split_packets(text: str) -> tuple[list[dict], str]:
+        """
+        Take every complete JSON object off the front of the received text.
+
+        Returns
+        -------
+        tuple
+            The complete packets (non-dict JSON is replaced by
+            {"invalid": True}) and the text left over (an incomplete packet).
+        """
+        decoder = json.JSONDecoder()
+        packets = []
+        while True:
+            text = text.lstrip()
+            if not text:
+                break
+            try:
+                obj, end = decoder.raw_decode(text)
+            except json.JSONDecodeError:
+                break
+            packets.append(obj if isinstance(obj, dict) else {"invalid": True})
+            text = text[end:]
+        return packets, text
+
+    def _send_reply(self, connection: socket.socket,
+                    reply: Optional[dict]) -> bool:
+        """Send a reply; return False if the sender has already gone."""
+        if reply is None:
+            return True
+        try:
+            connection.sendall(self._serialize(reply))
+            return True
+        except OSError:
+            return False
+
+    def _handle_connection(self, connection: socket.socket,
+                           first_packets: list[dict], leftover: str) -> None:
+        """
+        Serve one sender's connection (run as a thread): answer the packets
+        already read, then keep reading until the sender closes, so a sender
+        may put several messages on one connection.
+        """
+        with self.lock:
+            self._connections.add(connection)
+        try:
+            for packet in first_packets:
+                if not self._send_reply(connection,
+                                        self._process_packet(packet)):
+                    return
+            text = leftover
+            while not self._handover:
+                try:
+                    data = connection.recv(self._buffer_size)
+                except OSError:
+                    return
+                if not data:
+                    return
+                text += data.decode("utf-8", errors="replace")
+                packets, text = self._split_packets(text)
+                for packet in packets:
+                    if not self._send_reply(connection,
+                                            self._process_packet(packet)):
+                        return
+        finally:
+            with self.lock:
+                self._connections.discard(connection)
+            connection.close()
 
     def export_counters(self, path: str) -> None:
         """
@@ -291,30 +395,123 @@ class ReConnect:
 
     def relay(self) -> None:
         """
-        Function as a substitute communications relay.
+        Function as a substitute communications relay until a relay presents
+        the correct handover key, then release self._relay_port.
+
+        Every message is delivered to its destination port and answered with
+        an ACK on the sender's connection. The first packet of each
+        connection is read before the next connection is accepted, so a
+        handover request takes effect before anything else is accepted.
 
         Raises
         ------
         OSError
             If it could not take control of self.relay_port
         """
+        self._handover = False
+        workers: list[threading.Thread] = []
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((self._ip_address, self._relay_port))
-            s.listen()
+            s.listen(self._connection_queue_size)
+            s.settimeout(0.5)
             while not self._handover:
-                connection, address = s.accept()
-                packet = connection.recv(self._buffer_size)
-                t = threading.Thread(target=self._handle_received_packet,
-                                     args=(packet,),
+                try:
+                    connection, address = s.accept()
+                except socket.timeout:
+                    continue
+                connection.settimeout(2)
+                try:
+                    data = connection.recv(self._buffer_size)
+                except OSError:
+                    connection.close()
+                    continue
+                connection.settimeout(None)
+                if not data:
+                    connection.close()
+                    continue
+                text = data.decode("utf-8", errors="replace")
+                packets, leftover = self._split_packets(text)
+                if packets and \
+                        self._determine_packet_type(packets[0]) == "handover":
+                    reply = self._process_packet(packets[0])
+                    self._send_reply(connection, reply)
+                    connection.close()
+                    continue
+                t = threading.Thread(target=self._handle_connection,
+                                     args=(connection, packets, leftover),
                                      daemon=True)
                 t.start()
+                workers.append(t)
+
+        # Port released: drop senders still connected so that they reconnect
+        # to the relay that now holds the port
+        with self.lock:
+            open_connections = list(self._connections)
+        for connection in open_connections:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+        # Let deliveries already under way finish before returning
+        for t in workers:
+            t.join(timeout=3)
         return None
 
+    def wait_for_relay(self) -> None:
+        """
+        Block until something accepts connections on self._relay_port (the
+        communications relay is up).
+        """
+        while True:
+            try:
+                with socket.create_connection((self._ip_address,
+                                               self._relay_port),
+                                              timeout=0.5):
+                    return
+            except OSError:
+                sleep(0.2)
 
-# Integration test code
+
+def demo() -> None:
+    """
+    Run ReConnect for a live demo: wait for the relay, monitor it, take over
+    its port when it fails, hand the port back when it returns, repeat.
+    """
+    rc = ReConnect(address_book.RELAY_PORT)
+    print(f"ReConnect: waiting for the relay on port "
+          f"{address_book.RELAY_PORT}...", flush=True)
+    try:
+        while True:
+            rc.wait_for_relay()
+            print("ReConnect: monitoring the relay", flush=True)
+            checks = rc.monitor()
+            print(f"ReConnect: relay stopped answering after {checks} "
+                  f"checks - taking over port {address_book.RELAY_PORT}",
+                  flush=True)
+            try:
+                rc.relay()
+            except OSError as error:
+                print(f"ReConnect: could not take over the port: {error}",
+                      flush=True)
+                sleep(0.5)
+                continue
+            print(f"ReConnect: relay is back - port handed over "
+                  f"(counters: {rc.counters})", flush=True)
+            sleep(0.5)
+    except KeyboardInterrupt:
+        print("ReConnect stopped.")
+
+
 if __name__ == "__main__":
 
+    # No arguments: live demo mode
+    if len(sys.argv) == 1:
+        demo()
+        sys.exit(0)
+
+    # Integration test code (used by tests/test_system.py)
     relay_port: Final[int] = int(sys.argv[1])
     monitor_limit: Final[int] = int(sys.argv[2])
     output_file: Final[str] = sys.argv[3]
